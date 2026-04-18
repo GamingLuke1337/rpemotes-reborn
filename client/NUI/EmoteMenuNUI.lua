@@ -1,4 +1,6 @@
 local nuiReady = false
+local initialDataLoaded = false
+local localesLoaded = false
 
 
 -- The NUI logic is designed to run *on top* of the existing NativeUI logic, since that menu already does all the data handling that we need.
@@ -28,12 +30,18 @@ local NUIEmoteType = {
     [EmoteType.EMOJI] = "emojis"
 }
 
-local keyList = {
+local keyListKeyboard = {
     { controlGroup = 2, key = 176, text = 'btn_select' },
     { controlGroup = 2, keys = {176, 209}, text = 'btn_contextmenu'},
     { controlGroup = 2, key = 177,  text = 'btn_back' },
     { controlGroup = 2, keys = {172, 173}, text = 'btn_move'},
     { controlGroup = 2, key = 209,  text = 'btn_move_faster' },
+    { key = 19,  text = 'btn_cursor' }
+}
+
+local keyListMouse = {
+    { controlGroup = 2, key = 223, text = 'btn_select' },
+    { controlGroup = 2, key = 225, text = 'btn_contextmenu'},
     { key = 19,  text = 'btn_cursor' }
 }
 
@@ -68,6 +76,7 @@ local NUIEmoteCategories = {
 
 RegisterNUICallback('NUI_READY', function(data, cb)
     nuiReady = true
+    DebugPrint("[ NUI READY ]")
     local configForNUI = {
         Keybinding = Config.Keybinding,
         MenuPosition = Config.MenuPosition,
@@ -78,6 +87,18 @@ RegisterNUICallback('NUI_READY', function(data, cb)
         Search = Config.Search,
     }
     cb({["ok"] = true, ["config"] = configForNUI})
+end)
+
+RegisterNUICallback('INITIAL_DATA_LOADED', function(data, cb)
+    initialDataLoaded = true
+    DebugPrint("[ NUI CATEGORIES LOADED ]")
+    cb({["ok"] = true})
+end)
+
+RegisterNUICallback('LOCALES_LOADED', function(data, cb)
+    localesLoaded = true
+    DebugPrint("[ NUI LOCALES LOADED ]")
+    cb({["ok"] = true})
 end)
 
 RegisterNUICallback('CLOSE_MENU', function(data, cb)
@@ -104,7 +125,17 @@ end)
 
 RegisterNUICallback('ROUTE_EMOTE', function(data, cb)
     if data.type == "emote" then
-        RouteEmoteToFunction(data.emoteName, data.emoteType, 1)
+        if data.emoteName == "_reset" then
+            if data.emoteType == EmoteType.WALKS then
+                ResetWalk()
+                DeleteResourceKvp("walkstyle")
+            elseif data.emoteType == EmoteType.EXPRESSIONS then
+                DeleteResourceKvp(EmoteType.EXPRESSIONS)
+                ClearFacialIdleAnimOverride(PlayerPedId())
+            end
+        else
+            RouteEmoteToFunction(data.emoteName, data.emoteType, 1)
+        end
     elseif data.type == "groupemote" then
         ToggleNUIMenu() -- Important to close first. Group emote request blocks the thread until you actually start the request.
         OnGroupEmoteRequest(data.emoteName)
@@ -168,6 +199,19 @@ RegisterNUICallback('PREVIEW_EMOTE', function(data, cb)
     cb({["ok"] = true, ["done"] = returnValue})
 end)
 
+RegisterNUICallback('SEARCH_EMOTES', function(data, cb)
+    local retval = {}
+    if data.searchTerm ~= nil then
+        retval = SearchEmotes(data.searchTerm)
+    end
+    --
+    -- Sending results data from `SearchEmotes()` without encoding causes FiveM to crash.
+    -- Not sure why, but I assume it's related to JSON encoding / decoding.
+    -- Doing it manually seems to work fine.
+    --
+    cb({["ok"] = true, ["emotes"] = json.encode(retval)})
+end)
+
 
 RegisterNUICallback('PLAY_SOUND_FRONTEND', function(data, cb)
     PlaySoundFrontend(-1, data.soundName, "HUD_FRONTEND_DEFAULT_SOUNDSET", true)
@@ -187,8 +231,7 @@ AddEventHandler("rpemotes:internal:loadEmoteDataToNUI", function(EmoteData, Cate
         dataForMenu[htmlClass] = {}
     end
 
-
-    while not nuiReady do Citizen.Wait(10) end
+    while not nuiReady or not localesLoaded do Citizen.Wait(10) end
     SendNUIMessage({type = "LOAD_EMOTE_DATA", emoteData = EmoteData, categoryToEmotes = CategoryToEmotes, emoteCategories = NUIEmoteCategories, emoteTypeIcons = EmoteTypeEmoji})
 end)
 
@@ -205,24 +248,15 @@ function AddEmoteToNUIQueue(data)
 end
 
 AddEventHandler("rpemotes:internal:sendMenuDataToNUI", function()
-    while not nuiReady do Citizen.Wait(10) end
-
+    while not nuiReady or not initialDataLoaded do Citizen.Wait(10) end
     SendNUIMessage(dataForMenu)
-    dataForMenu = {
-        type = "BUILD_EMOTE_MENUS",
-        ["emotes"] = {},
-        ["sharedEmotes"] = {},
-        ["propEmotes"] = {},
-        ["danceEmotes"] = {},
-        ["walkStyles"] = {},
-        ["moods"] = {},
-        ["emojis"] = {},
-        ["favorites"] = {}
-    }
+    for key, val in pairs(dataForMenu) do
+        dataForMenu[key] = {}
+    end
 end)
 
 AddEventHandler("rpemotes:internal:sendKeybindsDataToNUI", function(binds)
-    while not nuiReady do Citizen.Wait(10) end
+    while not nuiReady or not initialDataLoaded do Citizen.Wait(10) end
 
     SendNUIMessage({
         type = "BUILD_KEYBINDS_MENU",
@@ -241,10 +275,11 @@ function ToggleNUIMenu()
 end
 
 AddEventHandler("rpemotes:internal:handleNUIOpened", function()
-    SendNUIMessage({type = "OPEN_MENU", value = true})
+    local _showEmoji = ShouldShowEmojiMenu()
+    SendNUIMessage({type = "OPEN_MENU", value = true, shouldShowEmojiMenu = _showEmoji})
     SendNUIMessage({type = "TOGGLE_CURSOR_INPUT", value = false})
 
-    local scaleform_instructions = SetupButtons(keyList)
+    local scaleform_instructions = SetupButtons(keyListKeyboard)
 
     while IsNuiFocused() do
         DrawScaleformMovieFullscreen(scaleform_instructions, 255, 255, 255, 255)
@@ -253,6 +288,8 @@ AddEventHandler("rpemotes:internal:handleNUIOpened", function()
         if IsControlJustPressed(0,19) then
             SetNuiFocus(true, true)
             SendNUIMessage({type = "TOGGLE_CURSOR_INPUT", value = true})
+            SetScaleformMovieAsNoLongerNeeded(scaleform_instructions)
+            scaleform_instructions = SetupButtons(keyListMouse)
         end
         if IsControlPressed(0,19) then
             DisableControlAction(0,1,true)
@@ -265,10 +302,12 @@ AddEventHandler("rpemotes:internal:handleNUIOpened", function()
         if IsControlJustReleased(0,19) then
             SetNuiFocus(true, false)
             SendNUIMessage({type = "TOGGLE_CURSOR_INPUT", value = false})
+            SetScaleformMovieAsNoLongerNeeded(scaleform_instructions)
+            scaleform_instructions = SetupButtons(keyListKeyboard)
         end
-        Citizen.Wait(1)
+        Wait(1)
     end
     CreatePreviewPed("", "")
     SetScaleformMovieAsNoLongerNeeded(scaleform_instructions)
-    SendNUIMessage({type = "OPEN_MENU", value = false})
+    SendNUIMessage({type = "OPEN_MENU", value = false, shouldShowEmojiMenu = _showEmoji})
 end)

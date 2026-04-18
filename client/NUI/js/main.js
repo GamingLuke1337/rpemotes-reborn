@@ -1,5 +1,5 @@
 "use strict";
-import { ClearHTMLContainer, HandleSidebarButtonPress, ExecuteNUICallback, PlaySoundFrontend, HandleEmoteSearch, querySelectorVisible } from './utils.js';
+import { ClearHTMLContainer, HandleSidebarButtonPress, ExecuteNUICallback, PlaySoundFrontend, HandleEmoteFilter, HandleEmoteSearch, querySelectorVisible } from './utils.js';
 import { Locale, Popover } from './classes.js'
 
 
@@ -10,8 +10,9 @@ const SEARCH_BAR = SEARCH_CONTAINER.querySelector(".search-input");
 let MENUS = CONTENT_CONTAINER.querySelectorAll(".menu");
 const FOOTER_TEXT = document.querySelector(".footer-text");
 
-let EMOTE_TYPE_ICONS = {}
+export let EMOTE_TYPE_ICONS = {}
 export let CONFIG;
+export let UsingMouse = false;
 
 window.addEventListener("load", async (e) => {
 
@@ -20,7 +21,10 @@ window.addEventListener("load", async (e) => {
         if (!response.config) return;
         CONFIG = response.config;
 
-        if (!CONFIG.Search) SEARCH_CONTAINER.classList.add("hidden");
+        if (!CONFIG.Search) {
+            SEARCH_CONTAINER.classList.add("hidden");
+            document.querySelector('[data-menu="search-menu"]')?.parentElement?.remove();
+        }
         if (!CONFIG.EmojiMenuEnabled) document.querySelector('[data-menu="emojis-menu"]')?.parentElement?.remove();
         if (!CONFIG.ExpressionsEnabled) document.querySelector('[data-menu="moods-menu"]')?.parentElement?.remove();
         if (!CONFIG.WalkingStylesEnabled) document.querySelector('[data-menu="walkstyles-menu"]')?.parentElement?.remove();
@@ -72,6 +76,7 @@ document.addEventListener('localesLoaded', (e) => {
     // All logic is done through the class, sadly. Sends a `popoverAction` custom event when a button is used.
     //////////////////////////////////////////////////////////////////////////////////////////////////////////
     const emotePopover = new Popover('.btn-emote');
+    ExecuteNUICallback("LOCALES_LOADED", {})
 })
 
 SIDE_NAVIGATION.addEventListener("click", (e) => {
@@ -133,15 +138,25 @@ function _setupMenuEventListeners(MENUS) {
     })
 }
 
-SEARCH_CONTAINER.addEventListener("submit", (e) => {
+SEARCH_CONTAINER.addEventListener("submit", async (e) => {
     e.preventDefault();
-    HandleEmoteSearch();
+    if (document.querySelector(".search-menu.grid")) {
+        await HandleEmoteSearch();
+    } else {
+        await HandleEmoteFilter();
+    }
+    querySelectorVisible(document.querySelector(".grid"))?.focus();
+})
+
+SEARCH_CONTAINER.addEventListener("reset", (e) => {
+    HandleEmoteFilter("");
 })
 
 
 let lastSearchInputValue = ""
 SEARCH_BAR.addEventListener("input", (e) => {
-    if (SEARCH_BAR.value !== lastSearchInputValue) HandleEmoteSearch();
+    if (document.querySelector(".search-menu.grid")) return;
+    if (SEARCH_BAR.value !== lastSearchInputValue) HandleEmoteFilter();
     lastSearchInputValue = SEARCH_BAR.value
 })
 
@@ -150,10 +165,12 @@ window.addEventListener('message', (event) => {
     if (event.data.type === 'OPEN_MENU') {
         (event.data.value ? document.body.style.display = "flex" : document.body.style.display = "none")
         document.querySelector(".btn-sidebar").focus();
+        event.data.shouldShowEmojiMenu ? document.querySelector(".emoji-sidebar")?.classList.remove("hidden") : document.querySelector(".emoji-sidebar")?.classList.add("hidden")
     }
 
     if (event.data.type === 'TOGGLE_CURSOR_INPUT') {
         (event.data.value ? document.body.classList.remove("no-cursor") : document.body.classList.add("no-cursor"))
+        UsingMouse = !document.body.classList.contains("no-cursor");
     }
 
     if (event.data.type === 'LOAD_EMOTE_DATA') {
@@ -167,19 +184,20 @@ window.addEventListener('message', (event) => {
             SIDEBAR_ANCHOR.insertAdjacentHTML("afterend",
                 `
                     <li class="sidebar-button-container">
-                        <button class="btn btn-sidebar" data-action="openMenu" data-menu="${emoteCategories[key].id}-menu">${emoteCategories[key].icon}</button>
-                        <span class="btn-sidebar-label">${key}</span>
+                        <button id="${emoteCategories[key].id}-menu-btn" class="btn btn-sidebar" data-action="openMenu" data-menu="${emoteCategories[key].id}-menu">${emoteCategories[key].icon}</button>
+                        <label for="${emoteCategories[key].id}-menu-btn" class="btn-sidebar-label" data-locale="${key}">${key}</label>
                     </li>
                 `);
 
             MENU_ANCHOR.insertAdjacentHTML("afterend",
                 `
-                <article class="menu ${emoteCategories[key].id}-menu doublecolumn">Hiii
+                <article class="menu ${emoteCategories[key].id}-menu doublecolumn btn-list">Hiii
                 </article>
                 `)
         })
         MENUS = CONTENT_CONTAINER.querySelectorAll(".menu");
         _setupMenuEventListeners(MENUS);
+        ExecuteNUICallback("INITIAL_DATA_LOADED", {})
     }
 
     if (event.data.type === 'BUILD_EMOTE_MENUS') {
@@ -188,10 +206,16 @@ window.addEventListener('message', (event) => {
                 const EMOTES = CONTENT_CONTAINER.querySelector(`.${key}-menu`);
                 if (!EMOTES) return;
                 ClearHTMLContainer(`.${key}-menu`);
+                if (key==="moods" || key==="walkstyles") {
+                    // Add the (Clear Mood) button here. Nightmares for future maintainers.
+                    EMOTES.insertAdjacentHTML("beforeend", `
+                        <button class="btn btn-emote btn-style-reset" data-emoteid="_reset" data-emotetype="${event.data[key][0].emoteType}" data-locale="normalreset"></button>
+                        `)
+                }
                 event.data[key].forEach((el) => {
                     if (el) {
                         EMOTES.insertAdjacentHTML("beforeend", `
-                            <button class="btn btn-emote ${el.isFavorite ? "btn-emote-favorite" : ""} ${el.emoteType === "Emojis" ? "noto-color-emoji-regular" : ""}" data-emoteid="${el.emoteName}" data-emoteType="${el.emoteType}" data-label="${el.label}">${el.emoteType !== 'Emojis' ? EMOTE_TYPE_ICONS[el.emoteType]+" " : ""}${el.label}</button>
+                            <button class="btn btn-emote ${el.isFavorite ? "btn-emote-favorite" : ""} ${el.emoteType === "Emojis" ? "noto-color-emoji-regular" : ""}" data-emoteid="${el.emoteName}" data-emotetype="${el.emoteType}" data-label="${el.label}">${el.emoteType !== 'Emojis' ? EMOTE_TYPE_ICONS[el.emoteType]+" " : ""}${el.label}</button>
                             `)
                     }
                 })
@@ -201,6 +225,7 @@ window.addEventListener('message', (event) => {
             const ELEMENTS = Array.from(document.querySelectorAll(`[data-emoteid="${emote.emoteName}"]`));
             ELEMENTS.forEach((el) => el?.classList.add("btn-emote-favorite"));
         })
+        Locale.setLocaleStrings();
     }
 
     if (event.data.type === "BUILD_KEYBINDS_MENU") {

@@ -1,5 +1,5 @@
 "use strict";
-import { CONFIG } from "./main.js";
+import { CONFIG, EMOTE_TYPE_ICONS } from "./main.js";
 
 export function ClearHTMLContainer(elementClass) {
     const ELEMENT = document.querySelector(elementClass);
@@ -35,13 +35,15 @@ export function HandleSidebarButtonPress(el) {
 
             if (CONFIG.Search) {
                 SEARCH_CONTAINER.classList.remove("hidden");
-                SEARCH_CONTAINER.querySelector(".search-input").value = "";
-                HandleEmoteSearch(""); // Bodge to clear search. Sorry.
+                if (BUTTON_CONTAINER !== PREVIOUS_ACTIVE_BUTTON_CONTAINER) {
+                    SEARCH_CONTAINER.querySelector(".search-input").value = "";
+                    HandleEmoteFilter(""); // Bodge to clear search. Sorry.
+                }
                 if (OPENED_MENU?.classList.contains("keybinds-menu")) {
                     SEARCH_CONTAINER.classList.add("hidden");
                 }
             }
-
+            if (el.dataset.menu === "search-menu") return SEARCH_CONTAINER.querySelector(".search-input").focus();
             querySelectorVisible(OPENED_MENU)?.focus();
             break;
         case "cancelEmote":
@@ -53,25 +55,43 @@ export function HandleSidebarButtonPress(el) {
     }
 }
 
-export function HandleEmoteSearch(search, menu = ".grid") {
+export function HandleEmoteFilter(_search, menu = ".grid") {
     const CONTENT_CONTAINER = document.querySelector(".content-container");
-    const searchValue = typeof search !== "undefined" ? search?.toLowerCase() : document.querySelector(".search-input").value.toLowerCase();
+    const searchValue = typeof _search !== "undefined" ? _search?.toLowerCase() : document.querySelector(".search-input").value.toLowerCase();
     const gridElements = CONTENT_CONTAINER.querySelectorAll(menu);
     
     gridElements.forEach((grid) => {
         const buttons = grid.querySelectorAll("[data-emoteid]");
         buttons.forEach((button) => {
-            const emoteId = button.dataset.emoteid.toLowerCase();
-            button.style.display = emoteId.includes(searchValue) ? "" : "none";
+            const emoteId = button.dataset.emoteid.toLowerCase()+button.textContent.toLowerCase();
+            emoteId.includes(searchValue) ? button.classList.remove("hidden") : button.classList.add("hidden");
         })
     })
+}
+
+export async function HandleEmoteSearch(_search) {
+    const container = document.querySelector(".search-menu");
+    const searchValue = typeof _search !== "undefined" ? _search?.toLowerCase() : document.querySelector(".search-input").value.toLowerCase();
+
+    const req = await ExecuteNUICallback("SEARCH_EMOTES", {searchTerm: searchValue});
+    let res = []
+    if (req) res = await req.json();
+    let emotes = JSON.parse(res.emotes);
+    
+    ClearHTMLContainer(".search-menu");
+    emotes.forEach((emote) => {
+        container.insertAdjacentHTML("beforeend", `
+            <button class="btn btn-emote" data-emoteid="${emote.name}" data-emotetype="${emote.data.emoteType}" data-label="${emote.data.label}">${emote.data.emoteType !== 'Emojis' ? EMOTE_TYPE_ICONS[emote.data.emoteType]+" " : ""}${emote.data.label}</button>
+            `)
+    })
+
 }
 
 export function querySelectorVisible(parent, query = ".btn") {
     const elements = parent?.querySelectorAll(query);
     let retval;
     for (const el of elements) {
-        if (el?.style?.display !== "none") {
+        if (!el.classList.contains("hidden")) {
             retval = el;
             break;
         }
@@ -87,14 +107,10 @@ export async function HandleLocales() {
     };
     const LOCALES = await req.json()
     if (!LOCALES || !LOCALES.data) return {};
+    
     document.querySelectorAll("[data-locale]").forEach((el) => {
         if (LOCALES.data[el.dataset.locale]) {
-            if (el.hasAttribute("placeholder")) {
-                el.setAttribute("placeholder", LOCALES.data[el.dataset.locale])
-            } else {
-                el.innerHTML = LOCALES.data[el.dataset.locale]
-                //innerHTML for the sole purpose of allowing locales to contain html (like <br>). Pretty much only for the `keybinds_description` locale.
-            }
+            LOCALES.data[el.dataset.locale] = LOCALES.data[el.dataset.locale].replace(/~.*?~/g, "").trim();
         }
     })
     return LOCALES.data;

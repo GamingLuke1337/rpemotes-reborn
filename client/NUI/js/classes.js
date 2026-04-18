@@ -23,6 +23,10 @@ export class Popover {
             if (event.target.closest(this.triggerSelector)) {
                 e.preventDefault();
                 this.currentButton = event.target.closest(this.triggerSelector);
+                if (this.currentButton.classList.contains("btn-style-reset")) {
+                    this.currentButton = null;
+                    return;
+                }
                 this.show(event);
             }
         });
@@ -49,7 +53,7 @@ export class Popover {
         }
 
         const popover = document.createElement('div');
-        popover.className = 'popover';
+        popover.className = 'popover btn-list';
         document.body.appendChild(popover);
 
         if (data.emoteId) {
@@ -144,5 +148,22 @@ export class Locale {
     static translate(key) {
         if (Locale.LOCALES[key]) return Locale.LOCALES[key];
         return String(key);
+    }
+
+    static setLocaleStrings() {
+        document.querySelectorAll("[data-locale]").forEach((el) => {
+            if (Locale.LOCALES[el.dataset.locale]) {
+                if (el.hasAttribute("placeholder")) {
+                    el.setAttribute("placeholder", Locale.LOCALES[el.dataset.locale])
+                } else {
+                    el.textContent = Locale.LOCALES[el.dataset.locale]
+                    el.textContent = el.textContent.replace("\n", "\u000D\u000A")
+                }
+            }
+            if (el.nodeName === "LABEL") {
+                const btn = document.getElementById(el.htmlFor)
+                if (btn) el.textContent = el.textContent.replace(btn.textContent, "");
+            }
+        })
     }
 }
