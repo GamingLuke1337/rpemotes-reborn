@@ -109,6 +109,11 @@ function isElementVisible(element) {
     return !display;
 }
 
+function isElementVisibleBetter(element) {
+    // https://developer.mozilla.org/en-US/docs/Web/API/HTMLElement/offsetParent
+    return element && element.offsetParent !== null;
+}
+
 function getGridColumns(element) {
     let retval = 1;
     if (element?.classList.contains("menu")) retval = window.getComputedStyle(element).getPropertyValue("grid-template-columns").split(" ").length;
@@ -132,7 +137,7 @@ function navigateUp(currentButton, jumpAhead = false, jumps = 1, checkColumns = 
         nextIndex = buttons.length-1;
         
     }
-    while (!isElementVisible(buttons[nextIndex]) && attempts < buttons.length) {
+    while (!isElementVisibleBetter(buttons[nextIndex]) && attempts < buttons.length) {
         if (nextIndex < 0) nextIndex = buttons.length-1;
         nextIndex = (nextIndex - 1) % buttons.length;
         attempts++;
@@ -156,7 +161,7 @@ function navigateDown(currentButton, jumpAhead = false, jumps = 1, checkColumns 
 
     if (currentButton.classList.contains("btn-clear-search") && checkColumns) return querySelectorVisible(document.querySelector(".grid"))?.focus();
     
-    while (!isElementVisible(buttons[nextIndex]) && attempts < buttons.length) {
+    while (!isElementVisibleBetter(buttons[nextIndex]) && attempts < buttons.length) {
         nextIndex = (nextIndex + 1) % buttons.length;
         attempts++;
     }
