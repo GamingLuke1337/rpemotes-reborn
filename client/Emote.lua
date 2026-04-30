@@ -198,7 +198,7 @@ local function exitScenario()
         and IsInAnimation
     then
         local playerPed = PlayerPedId()
-        if IsPedInAnyVehicle(playerPed) then
+        if IsPedInAnyVehicle(playerPed, false) then
             ClearPedSecondaryTask(playerPed)
             ClearPedTasks(playerPed)
         else
