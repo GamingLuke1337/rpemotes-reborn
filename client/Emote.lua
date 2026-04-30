@@ -9,7 +9,7 @@ LastEmote = {
     emoteType = nil,
 }
 local lastEmoteTime = 0
-local isBumpingPed = false
+local isBumpingPed = falsef
 local pedBumpTimeout = 500
 
 ---@type ScenarioType
@@ -836,7 +836,7 @@ function OnEmotePlay(name, textureVariation, emoteType)
 
     if IsPedUsingAnyScenario(PlayerPedId()) or IsPedActiveInScenario(PlayerPedId()) then
         local playerPed = PlayerPedId()
-        if IsPedInAnyVehicle(playerPed) then
+        if IsPedInAnyVehicle(playerPed, false) then
             ClearPedSecondaryTask(playerPed)
             ClearPedTasks(playerPed)
         else
