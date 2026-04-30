@@ -94,7 +94,7 @@ function UseNewscam()
         cam = CreateCam("DEFAULT_SCRIPTED_FLY_CAMERA", true)
 
         AttachCamToEntity(cam, PlayerPedId(), 0.0, 0.0, 1.2, true)
-        SetCamRot(cam, 0.0, 0.0, GetEntityHeading(PlayerPedId()))
+        SetCamRot(cam, 0.0, 0.0, GetEntityHeading(PlayerPedId())) -- FIXME: https://docs.fivem.net/natives/?_0x85973643155D0B07 needs rotationOrder argument
         SetCamFov(cam, fov)
         RenderScriptCams(true, false, 0, true, false)
 
@@ -150,9 +150,11 @@ function UseNewscam()
                 PlaySoundFrontend(-1, "SELECT", "HUD_FRONTEND_DEFAULT_SOUNDSET", false)
             end
 
-            DrawScaleformMovieFullscreen(scaleform_news, 255, 255, 255, 255)
-            if instructions then
-                DrawScaleformMovieFullscreen(scaleform_instructions, 255, 255, 255, 255)
+            if scaleform_news then
+                DrawScaleformMovieFullscreen(scaleform_news, 255, 255, 255, 255)
+                if instructions then
+                    DrawScaleformMovieFullscreen(scaleform_instructions, 255, 255, 255, 255)
+                end
             end
             Wait(0)
         end

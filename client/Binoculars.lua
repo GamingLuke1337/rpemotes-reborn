@@ -70,7 +70,7 @@ function UseBinocular()
         cam = CreateCam("DEFAULT_SCRIPTED_FLY_CAMERA", true)
 
         AttachCamToEntity(cam, PlayerPedId(), 0.0, 0.0, 1.2, true)
-        SetCamRot(cam, 0.0, 0.0, GetEntityHeading(PlayerPedId()))
+        SetCamRot(cam, 0.0, 0.0, GetEntityHeading(PlayerPedId())) -- FIXME: https://docs.fivem.net/natives/?_0x85973643155D0B07 needs rotationOrder argument
         SetCamFov(cam, fov)
         RenderScriptCams(true, false, 0, true, false)
         PushScaleformMovieFunction(scaleform_bin, "SET_CAM_LOGO")

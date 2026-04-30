@@ -9,7 +9,7 @@ LastEmote = {
     emoteType = nil,
 }
 local lastEmoteTime = 0
-local isBumpingPed = falsef
+local isBumpingPed = false
 local pedBumpTimeout = 500
 
 ---@type ScenarioType
@@ -153,7 +153,7 @@ local function runAnimationThread()
 
             Wait(sleep)
         end
-        CleanUpPlacement(ped)
+        CleanUpPlacement(pPed)
     end)
 end
 
@@ -293,9 +293,11 @@ function EmoteMenuStart(name, textureVariation, emoteType)
     if not emote then return end
 
     -- Check model compatibility
-    if not IsModelCompatible(CachedPlayerModel, name) then
-        EmoteChatMessage("This emote is not compatible with your current model")
-        return
+    if CachedPlayerModel then
+        if not IsModelCompatible(CachedPlayerModel, name) then
+            EmoteChatMessage("This emote is not compatible with your current model")
+            return
+        end
     end
     OnEmotePlay(name, textureVariation)
 end
@@ -489,7 +491,7 @@ function EmoteMenuStartClone(name, emoteType)
     if emoteType == EmoteType.EXPRESSIONS then
         local emote = ExpressionData[name]
         if emote then
-            SetFacialIdleAnimOverride(ClonedPed, emote.anim, true)
+            SetFacialIdleAnimOverride(ClonedPed, emote.anim, true) -- FIXME: https://docs.fivem.net/natives/?_0xFFC24B988B938B38 last argument should be animDict, not boolean
         else
             ClearFacialIdleAnimOverride(ClonedPed)
         end
@@ -538,9 +540,11 @@ function EmoteCommandStart(args)
     end
 
     -- Check model compatibility
-    if not IsModelCompatible(CachedPlayerModel, name) then
-        EmoteChatMessage("This emote is not compatible with your current model")
-        return
+    if CachedPlayerModel then
+        if not IsModelCompatible(CachedPlayerModel, name) then
+            EmoteChatMessage("This emote is not compatible with your current model")
+            return
+        end
     end
 
     if not HasEmotePermission(name, emote.emoteType) then

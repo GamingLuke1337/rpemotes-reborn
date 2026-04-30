@@ -218,6 +218,8 @@ end
 
 function SendSharedEmoteRequest(emoteName)
     local target, distance = GetClosestPlayer()
+    target = tonumber(target)
+    if not target then return end
     if (distance ~= -1 and distance < 3) then
         TriggerServerEvent("rpemotes:server:requestEmote", GetPlayerServerId(target), emoteName)
         SimpleNotify(Translate('sentrequestto') .. GetPlayerName(target))
